@@ -16,7 +16,7 @@ type config struct {
 type cliCommand struct {
 	name        string
 	description string
-	callback    func(*config) error
+	callback    func(*config, ...string) error
 }
 
 func getCommands() map[string]cliCommand {
@@ -37,16 +37,21 @@ func getCommands() map[string]cliCommand {
 			description: "Display location information from the Pokemon world",
 			callback:    commandMap,
 		},
+		"explore": {
+			name:        "explore",
+			description: "Explore Pokemon in the location using the id or name",
+			callback:    commandExplore,
+		},
 	}
 }
 
-func commandExit(cfg *config) error {
+func commandExit(cfg *config, args ...string) error {
 	fmt.Println("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 	return nil
 }
 
-func commandHelp(cfg *config) error {
+func commandHelp(cfg *config, args ...string) error {
 	fmt.Println()
 	fmt.Println("Welcome to the Pokedex!")
 	fmt.Println("Usage:")
@@ -57,7 +62,7 @@ func commandHelp(cfg *config) error {
 	return nil
 }
 
-func commandMap(cfg *config) error {
+func commandMap(cfg *config, args ...string) error {
 	url := pokeapi.BaseLocationAreaURL
 	if cfg.Next != nil {
 		url = *cfg.Next
@@ -78,10 +83,26 @@ func commandMap(cfg *config) error {
 	return nil
 }
 
+func commandExplore(cfg *config, args ...string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("Must include name or id to explore")
+	}
+	url := pokeapi.BaseLocationAreaURL + args[0]
+	fmt.Printf("Exploring %s...\n", args[0])
+	res, err := pokeapi.GetLocationArea(url)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Found Pokemon:")
+	for _, encounter := range res.PokemonEncounters {
+		fmt.Println(encounter.Pokemon.Name)
+	}
+	return nil
+}
+
 func startRepl() {
 	scanner := bufio.NewScanner(os.Stdin)
 	cfg := &config{}
-
 	for {
 		fmt.Print("Pokedex > ")
 		ok := scanner.Scan()
@@ -100,11 +121,10 @@ func startRepl() {
 			fmt.Println("Unknown command")
 			continue
 		}
-		if err := cmd.callback(cfg); err != nil {
+		if err := cmd.callback(cfg, words[1:]...); err != nil {
 			fmt.Println(err)
 		}
 	}
-
 	if err := scanner.Err(); err != nil {
 		fmt.Println(err)
 	}
