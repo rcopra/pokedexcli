@@ -1,9 +1,8 @@
-package pokeapi
+package pokecache
 
 import (
 	"sync"
 	"time"
-	"fmt"
 )
 
 type Cache struct {
@@ -34,21 +33,20 @@ func (c *Cache) Add(key string, val []byte) {
 func (c *Cache) Get(key string) ([]byte, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	entry, err := c.entries[key]
-	if err != nil {
-		fmt.Println("error fetching data")
-	}
+	entry, ok := c.entries[key]
 	return entry.val, ok
 }
-func (c *Cache) reapLoop(interval) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *Cache) reapLoop(interval time.Duration) {
 
-	ticker = time.NewTicker(interval)
-	cutoff := time.Now().Add(-interval)
-	for key, entry := range c.entries {
-		if entry.createdAt.Before(cutoff) {
-			delete(c.entries, key)
+	ticker := time.NewTicker(interval)
+	for range ticker.C {
+		c.mu.Lock()
+		cutoff := time.Now().Add(-interval)
+		for key, entry := range c.entries {
+			if entry.createdAt.Before(cutoff) {
+				delete(c.entries, key)
+			}
 		}
+		c.mu.Unlock()
 	}
 }
