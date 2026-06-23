@@ -4,13 +4,17 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/rcopra/pokedexcli/internal/pokeapi"
+	"math/rand"
 	"os"
 	"strings"
+	"time"
 )
 
 type config struct {
 	Next     *string
 	Previous *string
+	pokeapi  *pokeapi.Client
+	pokedex  map[string]pokeapi.Pokemon
 }
 
 type cliCommand struct {
@@ -42,6 +46,11 @@ func getCommands() map[string]cliCommand {
 			description: "Explore Pokemon in the location using the id or name",
 			callback:    commandExplore,
 		},
+		"catch": {
+			name:        "catch",
+			description: "Usage: 'throw <pokemon name> - attempt to catch a pokemon",
+			callback:    commandCatch,
+		},
 	}
 }
 
@@ -68,7 +77,7 @@ func commandMap(cfg *config, args ...string) error {
 		url = *cfg.Next
 	}
 
-	res, err := pokeapi.ListLocationAreas(url)
+	res, err := cfg.pokeapi.ListLocationAreas(url)
 	if err != nil {
 		return err
 	}
@@ -89,20 +98,51 @@ func commandExplore(cfg *config, args ...string) error {
 	}
 	url := pokeapi.BaseLocationAreaURL + args[0]
 	fmt.Printf("Exploring %s...\n", args[0])
-	res, err := pokeapi.GetLocationArea(url)
+	res, err := cfg.pokeapi.GetLocationArea(url)
 	if err != nil {
 		return err
 	}
 	fmt.Println("Found Pokemon:")
 	for _, encounter := range res.PokemonEncounters {
-		fmt.Println(encounter.Pokemon.Name)
+		fmt.Printf(" - %v\n", encounter.Pokemon.Name)
 	}
+	return nil
+}
+
+func commandCatch(cfg *config, args ...string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("Must include name of pokemon you want to catch")
+	}
+
+	pokemonName := args[0]
+	url := pokeapi.BasePokemonURL + pokemonName
+
+	fmt.Printf("Throwing a Pokeball at %s...\n", pokemonName)
+
+	res, err := cfg.pokeapi.GetPokemon(url)
+	if err != nil {
+		return err
+	}
+
+	roll := rand.Intn(500)
+	chance := res.BaseExperience
+	if roll > chance {
+		fmt.Printf("%v was caught!\n", pokemonName)
+		cfg.pokedex[pokemonName] = res
+	} else {
+		fmt.Printf("%v escaped!\n", pokemonName)
+	}
+
 	return nil
 }
 
 func startRepl() {
 	scanner := bufio.NewScanner(os.Stdin)
-	cfg := &config{}
+	pokeClient := pokeapi.NewClient(5 * time.Minute)
+	cfg := &config{
+		pokeapi: pokeClient,
+		pokedex: make(map[string]pokeapi.Pokemon),
+	}
 	for {
 		fmt.Print("Pokedex > ")
 		ok := scanner.Scan()
