@@ -6,9 +6,6 @@ type cliCommand struct {
 	callback    func(*config, ...string) error
 }
 
-// commands is the registry of REPL commands, keyed by name. It is populated in
-// init rather than as a var initializer because commandHelp ranges over it,
-// which would otherwise be an initialization cycle.
 var commands map[string]cliCommand
 
 func init() {
